@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/test"
+        android:title="开始测试" />
+    <item
+        android:id="@+id/buildingtest"
+        android:title="楼层测试"
+        android:checkable="true"/>
+    <item
+        android:id="@+id/testend"
+        android:title="结束测试" />
+    <item
+        android:id="@+id/upload"
+        android:title="数据上传" />
+</menu>

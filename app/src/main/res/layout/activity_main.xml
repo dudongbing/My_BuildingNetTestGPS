@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/activity_main"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:paddingBottom="0dp"
+    android:paddingLeft="0dp"
+    android:paddingRight="0dp"
+    android:paddingTop="0dp"
+    tools:context="com.example.db_du.my_baiduditu.MainActivity">
+
+    <com.baidu.mapapi.map.MapView
+        android:id="@+id/bmapView"
+        android:layout_width="fill_parent"
+        android:layout_height="fill_parent"
+        android:clickable="true"
+        android:layout_alignParentTop="true" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="无网络信息"
+        android:id="@+id/position_text_view"
+        android:textColor="@android:color/black"
+        android:background="#00000000"    />
+
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/position_text_view"
+        android:layout_alignParentStart="true"
+        android:id="@+id/currentsignal"
+        android:textSize="18sp"
+        android:text="信号值"
+        android:textColor="@android:color/holo_red_dark"
+        android:background="#00000000"
+        android:alpha="1" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/currentsignal"
+        android:layout_alignParentStart="true"
+        android:id="@+id/buildinginfo"
+        android:textSize="18sp"
+        android:text="小区信息"
+        android:textColor="@android:color/black" />
+
+    <Button
+        android:text="下一层"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="0dp"
+        android:id="@+id/downfloor"
+        android:layout_marginBottom="80dp"
+        android:onClick="downfloor"
+        android:layout_above="@+id/savedata" />
+
+    <Button
+        android:text="上一层"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="70dp"
+        android:id="@+id/upfloor"
+        android:onClick="upfloor"
+        android:layout_alignBottom="@+id/downfloor"
+        android:layout_alignStart="@+id/downfloor" />
+
+    <Button
+        android:text="记录数据"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:id="@+id/savedata"
+        android:onClick="savedata"
+        android:layout_alignParentBottom="true"
+        android:layout_alignStart="@+id/downfloor"
+        android:layout_marginBottom="30dp" />
+
+</RelativeLayout>
