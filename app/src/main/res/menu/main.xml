@@ -13,4 +13,10 @@
     <item
         android:id="@+id/upload"
         android:title="数据上传" />
+    <item
+        android:id="@+id/about"
+        android:title="关于" />
+    <item
+        android:id="@+id/exit"
+        android:title="退出程序" />
 </menu>

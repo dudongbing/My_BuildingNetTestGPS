@@ -47,6 +47,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
+import static android.telephony.TelephonyManager.NETWORK_TYPE_UMTS;
 import static android.widget.Toast.makeText;
 
 public class MainActivity extends AppCompatActivity
@@ -72,8 +73,8 @@ public class MainActivity extends AppCompatActivity
     private boolean isTestMode=false;//是否测试模式
     private boolean isBuildingtest=false;//是否楼层测试
     private boolean filesaved=true;//测试文件是否保存
-    private String TestLocat="",BuildingNum="",BuildingEle="";//测试地点、楼号、单元
-    private int BuildingFloor=0;//楼层
+    private String TestLocat="小区",BuildingNum="1号楼",BuildingEle="1单元";//测试地点、楼号、单元
+    private int BuildingFloor=11;//楼层
     private double buildinglati,buildinglongi;
     Toast tos;
     //数据文件变量
@@ -156,7 +157,24 @@ public class MainActivity extends AppCompatActivity
             requestLocation();//百度定位
         }*/
     }
-//GPS回调方法
+
+/*    //屏蔽返回键
+    @Override
+    public boolean onKeyDown(int keyCode,KeyEvent event){
+        if(keyCode==KeyEvent.KEYCODE_BACK)
+            return true;//不执行父类点击事件
+        return super.onKeyDown(keyCode, event);//继续执行父类其他点击事件
+    }
+    */
+
+    //拦截返回键实现后台运行
+    @Override
+    public void onBackPressed() {
+        moveTaskToBack(false);
+    }
+
+
+    //GPS回调方法
     @Override
     public void onLocationChanged(Location location) {
         gpsprovider=location.getProvider();
@@ -173,9 +191,10 @@ public class MainActivity extends AppCompatActivity
         positionText.setText(LocaInfo+"\n"+NetInfo);
 
         if(isTestMode&&(!isBuildingtest)){
+            savetestdata();
 //            positionText.setText(NetInfo+LocaInfo+"\n测试模式");
 
-            String RRR="",SEB="",TACLAC="",ENRNC="",CI="",LATI="",LONGI="";
+/*            String RRR="",SEB="",TACLAC="",ENRNC="",CI="",LATI="",LONGI="";
 
             try{
                 //定义文件输出流
@@ -189,6 +208,7 @@ public class MainActivity extends AppCompatActivity
                 if(netType== TelephonyManager.NETWORK_TYPE_LTE){
                     RRR=RSRP+"";
                     SEB=SINR+"";
+                    if (SINR==999) SEB="";
                     TACLAC=LTETAC+"";
                     ENRNC=eNodebid+"";
                     CI=LTECI+"";
@@ -199,18 +219,30 @@ public class MainActivity extends AppCompatActivity
                         ||netType== TelephonyManager.NETWORK_TYPE_GSM) {
                     RRR=RXL+"";
                     SEB=BER+"";
+                    if (BER==999) SEB="";
                     TACLAC=GSMLAC+"";
                     ENRNC="";
                     CI=GSMCI+"";
                     LATI=lastlati+"";
                     LONGI=lastlongi+"";
                 }
-                else{
+                else  if (netType == TelephonyManager.NETWORK_TYPE_UMTS || netType == TelephonyManager.NETWORK_TYPE_HSDPA
+                        || netType == TelephonyManager.NETWORK_TYPE_HSUPA || netType == TelephonyManager.NETWORK_TYPE_HSPA
+                        || netType == TelephonyManager.NETWORK_TYPE_HSPAP) {
                     RRR=RSCP+"";
                     SEB=ECIO+"";
+                    if (ECIO==999) SEB="";
                     TACLAC=WCDMALAC+"";
                     ENRNC=RNC+"";
                     CI=WCDMACI+"";
+                    LATI=lastlati+"";
+                    LONGI=lastlongi+"";
+                }else{
+                    RRR="";
+                    SEB="";
+                    TACLAC="";
+                    ENRNC="";
+                    CI="";
                     LATI=lastlati+"";
                     LONGI=lastlongi+"";
                 }
@@ -225,7 +257,7 @@ public class MainActivity extends AppCompatActivity
                 }
             }catch(FileNotFoundException e){
                 e.printStackTrace();
-            }
+            }*/
         }
 
     }
@@ -258,7 +290,7 @@ public class MainActivity extends AppCompatActivity
             operator = tm.getNetworkOperator();
             netType = tm.getNetworkType();
 
-            currentnet.append(operator+"  ").append(networktype[netType]);
+            currentnet.append(operator+"  ");
             String testStr="";
             if (isTestMode) testStr="    测试模式";
             else   testStr="";
@@ -279,6 +311,8 @@ public class MainActivity extends AppCompatActivity
                                 WCDMACI = ((CellInfoWcdma) mci).getCellIdentity().getCid() % 65536;
                                 RSCP = cellSignalStrengthWcdma.getDbm();
                                 ECIO = 999;
+                                if (netType==TelephonyManager.NETWORK_TYPE_UNKNOWN)  netType = NETWORK_TYPE_UMTS;
+                                currentnet.append(networktype[netType]);
                                 currentnet.append("  LAC:" + WCDMALAC).append("  RNC:" + RNC).append("  CI:" + WCDMACI);
                                 signalInfo = " RSCP:" + RSCP + "        " + testStr;
                                 getCard1=true;//已取得第一张卡的网络信息
@@ -290,6 +324,8 @@ public class MainActivity extends AppCompatActivity
                                 GSMCI =  ((CellInfoGsm) mci).getCellIdentity().getCid();
                                 RXL = cellSignalStrengthGsm.getDbm();
                                 BER = 999;
+                                if (netType==TelephonyManager.NETWORK_TYPE_UNKNOWN)  netType = TelephonyManager.NETWORK_TYPE_GSM;
+                                currentnet.append(networktype[netType]);
                                 currentnet.append("  LAC:" + GSMLAC).append("  CI:" + GSMCI);
                                 signalInfo = " RXL:" + RXL + "        " + testStr;
                                 getCard1=true;
@@ -304,7 +340,8 @@ public class MainActivity extends AppCompatActivity
                                     LTECI = ((CellInfoLte)mci).getCellIdentity().getCi() % 256;
                                     RSRP = cellSignalStrengthLte.getDbm();
                                     SINR = 999;
-                                    ;
+                                    if (netType==TelephonyManager.NETWORK_TYPE_UNKNOWN) netType = TelephonyManager.NETWORK_TYPE_LTE;
+                                    currentnet.append(networktype[netType]);
                                     currentnet.append("  TAC:" + LTETAC).append("  eNodeBID:" + eNodebid).append("  CI:" + LTECI);
                                     signalInfo = " RSRP:" + RSRP + "        " + testStr;
                                     getCard1=true;
@@ -332,6 +369,7 @@ public class MainActivity extends AppCompatActivity
                             LTETAC = gLocation.getLac();
                             eNodebid = gLocation.getCid() / 256;
                             LTECI = gLocation.getCid() % 256;
+                            currentnet.append(networktype[netType]);
                             currentnet.append("  TAC:" + LTETAC).append("  eNodeBID:" + eNodebid).append("  CI:" + LTECI);
                         } catch (Exception e) {
                             makeText(getApplicationContext(), e.toString(), Toast.LENGTH_LONG).show();
@@ -341,17 +379,23 @@ public class MainActivity extends AppCompatActivity
                             || netType == TelephonyManager.NETWORK_TYPE_GSM) {
                         GSMLAC = gLocation.getLac();
                         GSMCI = gLocation.getCid();
+                        currentnet.append(networktype[netType]);
                         currentnet.append("  LAC:" + GSMLAC).append("  CI:" + GSMCI);
-                    } else {
+                    } else if (netType == TelephonyManager.NETWORK_TYPE_UMTS || netType == TelephonyManager.NETWORK_TYPE_HSDPA
+                            || netType == TelephonyManager.NETWORK_TYPE_HSUPA || netType == TelephonyManager.NETWORK_TYPE_HSPA
+                            || netType == TelephonyManager.NETWORK_TYPE_HSPAP) {
                         try {
                             WCDMALAC = gLocation.getLac();
                             RNC = gLocation.getCid() / 65536;
                             WCDMACI = gLocation.getCid() % 65536;
+                            currentnet.append(networktype[netType]);
                             currentnet.append("  LAC:" + WCDMALAC).append("  RNC:" + RNC).append("  CI:" + WCDMACI);
                         } catch (Exception e) {
                             makeText(getApplicationContext(), e.toString(), Toast.LENGTH_LONG).show();
                         }
-                        ;
+
+                    }else{
+                        currentnet.append("UNKOWN");
                     }
 
 
@@ -376,12 +420,16 @@ public class MainActivity extends AppCompatActivity
                         RXL = gsm_dbm;
                         BER = gsm_ber;
                         signalInfo = " RXL:" + RXL + "  BER:" + BER + testStr;
-                    } else {
+                    } else  if (netType == TelephonyManager.NETWORK_TYPE_UMTS || netType == TelephonyManager.NETWORK_TYPE_HSDPA
+                            || netType == TelephonyManager.NETWORK_TYPE_HSUPA || netType == TelephonyManager.NETWORK_TYPE_HSPA
+                            || netType == TelephonyManager.NETWORK_TYPE_HSPAP) {
                         int wcdma_rscp = (Integer) signalStrength.getClass().getMethod("getWcdmaRscp").invoke(signalStrength);
                         int wcdma_ecio = (Integer) signalStrength.getClass().getMethod("getWcdmaEcio").invoke(signalStrength);
                         RSCP = wcdma_rscp;
                         ECIO = wcdma_ecio;
                         signalInfo = " RSCP:" + RSCP + "  ECIO:" + ECIO + testStr;
+                    }else{
+                        signalInfo="";
                     }
                 }
 
@@ -429,22 +477,7 @@ public class MainActivity extends AppCompatActivity
         baiduMap.setMyLocationData(locationData);
     }
 
-/*
-    private void requestLocation(){
-        initLocation();
-        mLocationClient.start();
-    }
 
-    private void initLocation(){
-        LocationClientOption option = new LocationClientOption();
-        option.setScanSpan(5000);//5秒更新一次位置
-        option.setIsNeedAddress(true);
-        option.setLocationMode(LocationClientOption.LocationMode.Hight_Accuracy);
-        option.setOpenGps(true);
-        option.setLocationNotify(true);
-        option.setCoorType("bd09ll");
-        mLocationClient.setLocOption(option);
-    }*/
 
     @Override
     public void onRequestPermissionsResult(int requestCode,String[] permissions,int[]grantResults){
@@ -458,7 +491,7 @@ public class MainActivity extends AppCompatActivity
                         return;
                     }
                 }
-//                requestLocation();//百度定位
+
                 }else{
                     makeText(this,"发生未知错误",Toast.LENGTH_SHORT).show();
                     finish();
@@ -468,86 +501,13 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
-    /*
-    public class MyLocationListener implements BDLocationListener{
-        @Override
-        public void onReceiveLocation(BDLocation  location){
-            if(location.getLocType()==BDLocation.TypeGpsLocation||location.getLocType()==BDLocation.TypeNetWorkLocation){
-                navigateTo(location);
-            }
-
-            lastlati=location.getLatitude();
-            lastlongi=location.getLongitude();
-            lastaccuracy=location.getRadius();
-            LocaInfo=String.format("经度：%.5f   纬度：%.5f   精度:%.2f米",lastlongi,lastlati,lastaccuracy);
-            positionText.setText(NetInfo+LocaInfo);
-
-            if(isTestMode){
-                positionText.setText(NetInfo+LocaInfo+"\n测试模式");
-
-                String RRR="",SEB="",TACLAC="",ENRNC="",CI="",LATI="",LONGI="";
-
-                try{
-                    //定义文件输出流
-                    outStream=new FileOutputStream(file,true);
-
-                    //获取当前时间
-                    SimpleDateFormat formatter =  new SimpleDateFormat("yyyy-MM-dd   HH:mm:ss");
-                    Date curDate =  new Date(System.currentTimeMillis());
-                    String   str = formatter.format(curDate);
-
-                    if(netType== TelephonyManager.NETWORK_TYPE_LTE){
-                        RRR=RSRP+"";
-                        SEB=SINR+"";
-                        TACLAC=LTETAC+"";
-                        ENRNC=eNodebid+"";
-                        CI=LTECI+"";
-                        LATI=lastlati+"";
-                        LONGI=lastlongi+"";
-                    }
-                    else if(netType== TelephonyManager.NETWORK_TYPE_GPRS||netType== TelephonyManager.NETWORK_TYPE_EDGE
-                            ||netType== TelephonyManager.NETWORK_TYPE_GSM) {
-                        RRR=RXL+"";
-                        SEB=BER+"";
-                        TACLAC=GSMLAC+"";
-                        ENRNC="";
-                        CI=GSMCI+"";
-                        LATI=lastlati+"";
-                        LONGI=lastlongi+"";
-                    }
-                    else{
-                        RRR=RSCP+"";
-                        SEB=ECIO+"";
-                        TACLAC=WCDMALAC+"";
-                        ENRNC=RNC+"";
-                        CI=WCDMACI+"";
-                        LATI=lastlati+"";
-                        LONGI=lastlongi+"";
-                    }
-
-                        String datatitle=str+",,,,,"+networktype[netType]+","+LONGI+","+LATI+","+RRR+","+SEB+","+TACLAC+","+ENRNC+","+CI+"\n";
-                    try{
-                        //写入文件
-                        outStream.write(datatitle.getBytes("gb2312"));
-                        outStream.close();
-                    }catch(IOException  e){
-                        e.printStackTrace();
-                    }
-                }catch(FileNotFoundException e){
-                    e.printStackTrace();
-                }
-            }
-
-        }
-    }*/
-
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
         //在activity执行onDestroy时执行mMapView.onDestroy()，实现地图生命周期管理
         mMapView.onDestroy();
-//        mLocationClient.stop();
+
         baiduMap.setMyLocationEnabled(false);
     }
     @Override
@@ -691,20 +651,7 @@ public class MainActivity extends AppCompatActivity
                     if (!isTestMode) {
                         Intent intent=new Intent(this,FileShare.class);
                         startActivity(intent);
-/*                        SDCard=Environment.getExternalStorageDirectory().getAbsoluteFile();//
-                        file=new File(SDCard,File.separator + "Download"+ File.separator + "data.csv");
 
- //                       String sharefile = SDCard + File.separator + "Download" + File.separator + "data.csv";
-//                          Toast.makeText(this,sharefile,Toast.LENGTH_LONG).show();
-                        Intent shareIntent = new Intent(Intent.ACTION_SEND);
-       //                 shareIntent.putExtra(Intent.EXTRA_STREAM, Uri.fromFile(new File(sharefile)));
-                        shareIntent.putExtra(Intent.EXTRA_STREAM, Uri.fromFile(file));
-
-      //                  (Uri.parse(new File("/sdcard/cats.jpg").toString()));
-                        shareIntent.setType("application/octet-stream");
-                        startActivity(Intent.createChooser(shareIntent, "上传测试数据"));
-
-                        makeText(this, "上传测试数据", Toast.LENGTH_SHORT).show();*/
                     } else {
                         makeText(this, "请先结束测试", Toast.LENGTH_SHORT).show();
                     }
@@ -712,6 +659,13 @@ public class MainActivity extends AppCompatActivity
                 }catch (Exception e){
                     Toast.makeText(this,e.toString(),Toast.LENGTH_LONG).show();
                 }
+            case R.id.about:
+                Intent aboutit=new Intent(this,about.class);
+                startActivity(aboutit);
+                break;
+            case R.id.exit:
+                System.exit(0);
+                break;
 
             default:
         }
@@ -720,11 +674,15 @@ public class MainActivity extends AppCompatActivity
 //获得楼层测试相关建筑物信息
     protected  void onActivityResult(int requestCode,int resultCode,Intent it){
         if(resultCode==RESULT_OK){
+            //确认建筑物信息后，初始化楼层测试的相关数据
+            MenuItem mmi=(MenuItem)findViewById(R.id.buildingtest) ;
             TestLocat=it.getStringExtra("xiaoqu");
             BuildingNum=it.getStringExtra("louhao");
             BuildingEle=it.getStringExtra("danyuan");
             BuildingFloor=Integer.parseInt(it.getStringExtra("louceng"));
+
             displaytestdata();
+
         }
     }
     //测试上一层楼,最高40层
@@ -768,6 +726,7 @@ public class MainActivity extends AppCompatActivity
             if(netType== TelephonyManager.NETWORK_TYPE_LTE){
                 RRR=RSRP+"";
                 SEB=SINR+"";
+                if (SINR==999) SEB="";
                 TACLAC=LTETAC+"";
                 ENRNC=eNodebid+"";
                 CI=LTECI+"";
@@ -778,18 +737,30 @@ public class MainActivity extends AppCompatActivity
                     ||netType== TelephonyManager.NETWORK_TYPE_GSM) {
                 RRR=RXL+"";
                 SEB=BER+"";
+                if (BER==999) SEB="";
                 TACLAC=GSMLAC+"";
                 ENRNC="";
                 CI=GSMCI+"";
                 LATI=lastlati+"";
                 LONGI=lastlongi+"";
             }
-            else{
+            else if (netType == TelephonyManager.NETWORK_TYPE_UMTS || netType == TelephonyManager.NETWORK_TYPE_HSDPA
+                    || netType == TelephonyManager.NETWORK_TYPE_HSUPA || netType == TelephonyManager.NETWORK_TYPE_HSPA
+                    || netType == TelephonyManager.NETWORK_TYPE_HSPAP) {
                 RRR=RSCP+"";
                 SEB=ECIO+"";
+                if (ECIO==999) SEB="";
                 TACLAC=WCDMALAC+"";
                 ENRNC=RNC+"";
                 CI=WCDMACI+"";
+                LATI=lastlati+"";
+                LONGI=lastlongi+"";
+            }else{
+                RRR="";
+                SEB="";
+                TACLAC="";
+                ENRNC="";
+                CI="";
                 LATI=lastlati+"";
                 LONGI=lastlongi+"";
             }
