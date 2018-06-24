@@ -21,7 +21,7 @@ public class about extends AppCompatActivity {
 
     public  void helpweb(View v){
         Intent helpit=new Intent(Intent.ACTION_VIEW);
-        helpit.setData(Uri.parse("http://blog.sina.com.cn/s/blog_6f5c640c0102z8vs.html"));
+        helpit.setData(Uri.parse("https://www.jianshu.com/p/d01dc879954d"));
         startActivity(helpit);
 //        finish();
     }

@@ -22,7 +22,7 @@ public class FileShare extends AppCompatActivity {
 
     // The path to the root of sdcard
     private File mSdcardDir;
-    // The path to the "Download" subdirectory
+    // The path to the "Downloads" subdirectory
     private File mDownloadDir;
     // Array of files in the Download subdirectory
     File[] mDownloadFiles;
@@ -38,11 +38,6 @@ public class FileShare extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_file_share);
-
-/*        if(ContextCompat.checkSelfPermission(FileShare.this, Manifest.
-                permission.WRITE_EXTERNAL_STORAGE)!= PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(FileShare.this, new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, 1);
-        }*/
 
         try {
             //get the sdcard path
@@ -80,48 +75,46 @@ public class FileShare extends AppCompatActivity {
 
         // Define a listener that responds to clicks on a file in the ListView
         mFileListView.setOnItemClickListener(
-                new AdapterView.OnItemClickListener()
-
-                {
-                    @Override
-            /*
-             * When a filename in the ListView is clicked, get its
-             * content URI and send it to the requesting app
-             */
-                    public void onItemClick(AdapterView<?> adapterView,
+            new AdapterView.OnItemClickListener(){
+                @Override
+                /*
+                 * When a filename in the ListView is clicked, get its
+                 * content URI and send it to the requesting app
+                 */
+                public void onItemClick(AdapterView<?> adapterView,
                                             View view,
                                             int position,
                                             long rowId) {
-                /*
-                 * Get a File for the selected file name.
-                 * Assume that the file names are in the
-                 * mImageFilename array.
-                 */
-                        File requestFile = mDownloadFiles[position];
-                        if(!requestFile.isFile())//如果不是一个文件，返回。
-                            return;
-                /*
-                 * Most file-related method calls need to be in
-                 * try-catch blocks.
-                 */
-                        // Use the FileProvider to get a content URI
-                        try {
-                            fileUri = FileProvider.getUriForFile(
-                                    FileShare.this,
-                                    "com.example.db_du.my_baiduditu.fileprovider",
-                                    requestFile);
-                            Intent shareIntent = new Intent(Intent.ACTION_SEND);
-                            shareIntent.putExtra(Intent.EXTRA_STREAM, fileUri);
-                            shareIntent.setType("application/octet-stream");
-                            startActivity(Intent.createChooser(shareIntent, "上传测试数据"));
+                    /*
+                     * Get a File for the selected file name.
+                     * Assume that the file names are in the
+                     * mImageFilename array.
+                     */
+                    File requestFile = mDownloadFiles[position];
+                    if(!requestFile.isFile())//如果不是一个文件，返回。
+                        return;
+                    /*
+                     * Most file-related method calls need to be in
+                     * try-catch blocks.
+                     */
 
-                        } catch (IllegalArgumentException e) {
-                            Log.e("File Selector",
-                                    "The selected file can't be shared ");
-                        }
-//                        finish();//完成数据上传，结束activity
+                    // Use the FileProvider to get a content URI
+                    try {
+                        fileUri = FileProvider.getUriForFile(
+                                FileShare.this,
+                                "com.example.db_du.my_baiduditu.fileprovider",
+                                requestFile);
+                        Intent shareIntent = new Intent(Intent.ACTION_SEND);
+                        shareIntent.putExtra(Intent.EXTRA_STREAM, fileUri);
+                        shareIntent.setType("application/octet-stream");
+                        startActivity(Intent.createChooser(shareIntent, "上传测试数据"));
+
+                    } catch (IllegalArgumentException e) {
+                        Log.e("File Selector",
+                                "The selected file can't be shared ");
                     }
                 }
+            }
         );
     }
 }

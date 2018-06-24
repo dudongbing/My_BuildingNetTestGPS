@@ -2,6 +2,7 @@ package com.example.db_du.my_baiduditu;
 
 import android.Manifest;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.location.Location;
@@ -11,6 +12,7 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
+import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.telephony.CellInfo;
 import android.telephony.CellInfoGsm;
@@ -26,6 +28,7 @@ import android.telephony.gsm.GsmCellLocation;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -51,22 +54,22 @@ import static android.telephony.TelephonyManager.NETWORK_TYPE_UMTS;
 import static android.widget.Toast.makeText;
 
 public class MainActivity extends AppCompatActivity
-        implements LocationListener{
+        implements LocationListener,DialogInterface.OnClickListener {
 
-    static final int MIN_TIME=5000;
-    static final float MIN_DIST=5;
+    static final int MIN_TIME=2000;//GPS定位，位置更新条件：X毫秒
+    static final float MIN_DIST=5;//GPS定位，位置更新条件：X米
     LocationManager mgr;
-    boolean isGpsEnabled;
-    boolean isNetworkEnabled;
-    String gpsprovider;
+    boolean isGpsEnabled;//GPS定位是否可用
+    boolean isNetworkEnabled;//网络定位是否可用
+    String gpsprovider;//GPS定位提供者
 
     private MapView mMapView = null;
 //    public LocationClient mLocationClient = null;
     private TextView positionText,buildinginfo1,currentsignal;//显示网络信息、位置信息
  //   private MyLocationListener myListener = new MyLocationListener();
     private BaiduMap baiduMap;
-    private  boolean isFirstLocate=true;
-    private Button upfloor,downfloor,savedata;
+    private  boolean isFirstLocate=true;//是否第一次定位
+    private Button upfloor,downfloor,savedata;//楼内测试的三个按钮
 
 
     private double lastlati,lastlongi,lastaccuracy;//纬度、经度、精度
@@ -75,13 +78,13 @@ public class MainActivity extends AppCompatActivity
     private boolean filesaved=true;//测试文件是否保存
     private String TestLocat="小区",BuildingNum="1号楼",BuildingEle="1单元";//测试地点、楼号、单元
     private int BuildingFloor=11;//楼层
-    private double buildinglati,buildinglongi;
+    private double buildinglati,buildinglongi;//存储当前楼内测试的经纬度
     Toast tos;
     //数据文件变量
-    File SDCard;
+    File SDCard;//SD卡路径
     //定义文件名称
-    File file;
-    FileOutputStream outStream;
+    File file;//保存数据的文件
+    FileOutputStream outStream;//保存数据的输出流
 
 //网络测试相关变量
     SignalStrengthListener MyListener;
@@ -99,10 +102,7 @@ public class MainActivity extends AppCompatActivity
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-/*百度定位
-        mLocationClient=new LocationClient(getApplicationContext());
-        mLocationClient.registerLocationListener(myListener);
-*/
+
         mgr=(LocationManager)getSystemService(LOCATION_SERVICE);//GPS服务
 
         //网络测试设置
@@ -150,12 +150,9 @@ public class MainActivity extends AppCompatActivity
         }
         if(!permissionList.isEmpty()){
             String[] permissions=permissionList.toArray(new String[permissionList.size()]);
-//            Log.d("baidu",permissions.toString());
             ActivityCompat.requestPermissions(MainActivity.this,permissions,1);
         }
- /*       else{
-            requestLocation();//百度定位
-        }*/
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);//设置屏幕不休眠
     }
 
 /*    //屏蔽返回键
@@ -167,97 +164,34 @@ public class MainActivity extends AppCompatActivity
     }
     */
 
-    //拦截返回键实现后台运行
+    //确认是否退出程序？
     @Override
     public void onBackPressed() {
-        moveTaskToBack(false);
+        new AlertDialog.Builder(this)
+                .setMessage("是否退出程序？")
+                .setCancelable(false)
+                .setPositiveButton("是",this)
+                .setNegativeButton("否",this)
+                .show();
+//        moveTaskToBack(false);拦截返回键实现后台运行
     }
 
 
     //GPS回调方法
     @Override
     public void onLocationChanged(Location location) {
-        gpsprovider=location.getProvider();
+        gpsprovider=location.getProvider();//GPS数据提供者，程序中未使用
         lastlati=location.getLatitude();
         lastlongi=location.getLongitude();
         lastaccuracy=location.getAccuracy();
 
-
-        navigateTo();
-
-
+        navigateTo();//显示当前位置的地图
 
         LocaInfo=String.format("经度：%.5f   纬度：%.5f   精度:%.2f米",lastlongi,lastlati,lastaccuracy);
-        positionText.setText(LocaInfo+"\n"+NetInfo);
+        positionText.setText(LocaInfo+"\n"+NetInfo);//在主界面中显示位置信息
 
         if(isTestMode&&(!isBuildingtest)){
-            savetestdata();
-//            positionText.setText(NetInfo+LocaInfo+"\n测试模式");
-
-/*            String RRR="",SEB="",TACLAC="",ENRNC="",CI="",LATI="",LONGI="";
-
-            try{
-                //定义文件输出流
-                outStream=new FileOutputStream(file,true);
-
-                //获取当前时间
-                SimpleDateFormat formatter =  new SimpleDateFormat("yyyy-MM-dd   HH:mm:ss");
-                Date curDate =  new Date(System.currentTimeMillis());
-                String   str = formatter.format(curDate);
-
-                if(netType== TelephonyManager.NETWORK_TYPE_LTE){
-                    RRR=RSRP+"";
-                    SEB=SINR+"";
-                    if (SINR==999) SEB="";
-                    TACLAC=LTETAC+"";
-                    ENRNC=eNodebid+"";
-                    CI=LTECI+"";
-                    LATI=lastlati+"";
-                    LONGI=lastlongi+"";
-                }
-                else if(netType== TelephonyManager.NETWORK_TYPE_GPRS||netType== TelephonyManager.NETWORK_TYPE_EDGE
-                        ||netType== TelephonyManager.NETWORK_TYPE_GSM) {
-                    RRR=RXL+"";
-                    SEB=BER+"";
-                    if (BER==999) SEB="";
-                    TACLAC=GSMLAC+"";
-                    ENRNC="";
-                    CI=GSMCI+"";
-                    LATI=lastlati+"";
-                    LONGI=lastlongi+"";
-                }
-                else  if (netType == TelephonyManager.NETWORK_TYPE_UMTS || netType == TelephonyManager.NETWORK_TYPE_HSDPA
-                        || netType == TelephonyManager.NETWORK_TYPE_HSUPA || netType == TelephonyManager.NETWORK_TYPE_HSPA
-                        || netType == TelephonyManager.NETWORK_TYPE_HSPAP) {
-                    RRR=RSCP+"";
-                    SEB=ECIO+"";
-                    if (ECIO==999) SEB="";
-                    TACLAC=WCDMALAC+"";
-                    ENRNC=RNC+"";
-                    CI=WCDMACI+"";
-                    LATI=lastlati+"";
-                    LONGI=lastlongi+"";
-                }else{
-                    RRR="";
-                    SEB="";
-                    TACLAC="";
-                    ENRNC="";
-                    CI="";
-                    LATI=lastlati+"";
-                    LONGI=lastlongi+"";
-                }
-
-                String datatitle=str+",,,,,"+networktype[netType]+","+LONGI+","+LATI+","+RRR+","+SEB+","+TACLAC+","+ENRNC+","+CI+"\n";
-                try{
-                    //写入文件
-                    outStream.write(datatitle.getBytes("gb2312"));
-                    outStream.close();
-                }catch(IOException  e){
-                    e.printStackTrace();
-                }
-            }catch(FileNotFoundException e){
-                e.printStackTrace();
-            }*/
+            savetestdata();//保存测试数据
         }
 
     }
@@ -277,21 +211,27 @@ public class MainActivity extends AppCompatActivity
     public void onProviderDisabled(String provider) {
 
     }
-//GPS回调方法
 
+    //推出程序对话框事件处理
+    @Override
+    public void onClick(DialogInterface dialog, int which) {
+        if(which==DialogInterface.BUTTON_POSITIVE){
+            System.exit(0);
+        }
+    }
 
     //网络信号强度监听及处理
     private class SignalStrengthListener extends PhoneStateListener {
         public void onSignalStrengthsChanged(SignalStrength signalStrength) {
             super.onSignalStrengthsChanged(signalStrength);
 
-            StringBuilder currentnet=new StringBuilder();//网络信息字符串
+            StringBuilder currentnet=new StringBuilder();//保存网络信息字符串
 
-            operator = tm.getNetworkOperator();
-            netType = tm.getNetworkType();
+            operator = tm.getNetworkOperator();//运营商信息
+            netType = tm.getNetworkType();//网络类型
 
             currentnet.append(operator+"  ");
-            String testStr="";
+            String testStr;
             if (isTestMode) testStr="    测试模式";
             else   testStr="";
 
@@ -299,12 +239,12 @@ public class MainActivity extends AppCompatActivity
 
             try {
                 //用getAllCellLocation获取基站信息
-                List<CellInfo> mcellInfos = tm.getAllCellInfo();
-                if (mcellInfos.size() != 0) {
-                    for (CellInfo mci : mcellInfos) {
-                        if (mci instanceof CellInfoWcdma) {
+                List<CellInfo> mcellInfos = tm.getAllCellInfo();//获取全部小区信息
+                if (mcellInfos.size() != 0) {//如果已取得小区信息
+                    for (CellInfo mci : mcellInfos) {//依次处理小区信息
+                        if (mci instanceof CellInfoWcdma) {//处理WCDMA小区信息
 
-                            if (mci.isRegistered()&&(getCard1==false)) {//是否已注册小区,且未取得第一张卡的网络信息
+                            if (mci.isRegistered()&&(getCard1==false)) {//是否已注册小区,且未取得第一张卡的网络信息：只处理第一张卡的注册小区信息
                                 CellSignalStrengthWcdma cellSignalStrengthWcdma = ((CellInfoWcdma) mci).getCellSignalStrength();
                                 WCDMALAC = ((CellInfoWcdma) mci).getCellIdentity().getLac();
                                 RNC = ((CellInfoWcdma) mci).getCellIdentity().getCid() / 65536;
@@ -349,7 +289,6 @@ public class MainActivity extends AppCompatActivity
 
                             }
                         }
-//                        signal1.setText(txvdbm);
                     }
                 }
 
@@ -444,32 +383,23 @@ public class MainActivity extends AppCompatActivity
 
     private  void navigateTo() {
 
-        LatLng desLatLng=new LatLng(lastlati, lastlongi);
-        // 将GPS设备采集的原始GPS坐标转换成百度坐标
-
+        // 将GPS设备采集的原始GPS坐标转换成百度坐标，百度地图API
         CoordinateConverter converter  = new CoordinateConverter();
         converter.from(CoordinateConverter.CoordType.GPS);
 
         // sourceLatLng待转换坐标
-        LatLng ll = new LatLng(lastlati, lastlongi);
+        LatLng ll = new LatLng(lastlati, lastlongi);//待转换的坐标
         converter.coord(ll);
-        desLatLng = converter.convert();
+        LatLng desLatLng = converter.convert();
 
-
-        if (isFirstLocate) {
-
-
+        if (isFirstLocate) {//如果是第一次定位，就显示当前位置的地图
             baiduMap.setMapStatus(MapStatusUpdateFactory. newLatLng(desLatLng));
             baiduMap.setMapStatus(MapStatusUpdateFactory.zoomTo(19f));
 
-/*            MapStatusUpdate update = MapStatusUpdateFactory.newLatLng(ll);
-            baiduMap.animateMapStatus(update);
-            update = MapStatusUpdateFactory.zoomTo(19f);
-            baiduMap.animateMapStatus(update);*/
             isFirstLocate=false;
         }
 
-
+        //显示位置图标
         MyLocationData.Builder locationBuilder=new MyLocationData.Builder();
         locationBuilder.latitude(desLatLng.latitude);
         locationBuilder.longitude(desLatLng.longitude);
@@ -480,6 +410,7 @@ public class MainActivity extends AppCompatActivity
 
 
     @Override
+    //申请权限事件响应程序
     public void onRequestPermissionsResult(int requestCode,String[] permissions,int[]grantResults){
         switch(requestCode){
             case 1:
@@ -487,11 +418,9 @@ public class MainActivity extends AppCompatActivity
                 for(int result:grantResults){
                     if (result!=PackageManager.PERMISSION_GRANTED){
                         makeText(this,"必须同意所有权限才能使用本程序",Toast.LENGTH_SHORT).show();
-//                        finish();
                         return;
                     }
                 }
-
                 }else{
                     makeText(this,"发生未知错误",Toast.LENGTH_SHORT).show();
                     finish();
@@ -507,7 +436,6 @@ public class MainActivity extends AppCompatActivity
         super.onDestroy();
         //在activity执行onDestroy时执行mMapView.onDestroy()，实现地图生命周期管理
         mMapView.onDestroy();
-
         baiduMap.setMyLocationEnabled(false);
     }
     @Override
@@ -527,6 +455,7 @@ public class MainActivity extends AppCompatActivity
         enableLocationUpdates(false);//gps
     }
 
+    //GPS定位使能程序
     private void enableLocationUpdates(boolean isTurnon){
         if(ActivityCompat.checkSelfPermission(this,Manifest.permission.ACCESS_FINE_LOCATION)==PackageManager.PERMISSION_GRANTED)
         {
@@ -559,18 +488,19 @@ public class MainActivity extends AppCompatActivity
         return true;
     }
     @Override
+    //菜单事件响应程序
     public boolean onOptionsItemSelected(MenuItem  item){
         switch(item.getItemId()){
-            case R.id.test:
-                if(!isTestMode) {
+            case R.id.test://开始测试菜单
+                if(!isTestMode) {//第一次点击测试菜单
                     isTestMode = true;
-//打开文件，写入标题行
-                    if(Environment.getExternalStorageState().equals(Environment.MEDIA_MOUNTED))  {
+                    //打开要写入的测试文件，写入标题行
+                    if(Environment.getExternalStorageState().equals(Environment.MEDIA_MOUNTED))  {//SD卡可用
                         //获取SDCARD目录
                         SDCard=Environment.getExternalStorageDirectory().getAbsoluteFile();//
                         //定义文件名称
 
-                        File textsDir = new File(SDCard+File.separator + "Download");
+                        File textsDir = new File(SDCard+File.separator + "Download");//文件保存在SD卡的Downloads目录
                         if(!textsDir.exists()){
                             textsDir.mkdir();
                         }
@@ -583,7 +513,7 @@ public class MainActivity extends AppCompatActivity
                         Toast.makeText(this,"开启测试",Toast.LENGTH_LONG).show();
 
                         try {
-                            file.createNewFile();
+                            file.createNewFile();//打开文件
                         }catch(IOException e ){
                             e.printStackTrace();
                         }
@@ -591,11 +521,12 @@ public class MainActivity extends AppCompatActivity
                         try{
                             //定义文件输出流
                             outStream=new FileOutputStream(file);
+                            //定义文件第一行标题内容
                             String datatitle="测试时间,地点,楼号,单元,楼层,网络,经度,纬度,RSRP/RSCP/RXL,SINR/ECIO/BER,TAC/LAC,eNodeBID/RNC,CI\n";
 
                             try{
                                 //写入文件
-                                outStream.write(datatitle.getBytes("gb2312"));
+                                outStream.write(datatitle.getBytes("gb2312"));//按照gb2312编码写入
                                 outStream.close();
                             }catch(IOException  e){
                                 e.printStackTrace();
@@ -609,22 +540,23 @@ public class MainActivity extends AppCompatActivity
                     makeText(this, "启动测试模式", Toast.LENGTH_SHORT).show();
                 }
                 break;
-            case R.id.buildingtest:
+            case R.id.buildingtest://楼层测试菜单
                 if(isTestMode) {
-                    if (!isBuildingtest) {
+                    if (!isBuildingtest) {//第一次点击楼层测试
                         isBuildingtest = true;
-                        item.setChecked(true);
+                        item.setChecked(true);//勾选菜单
                         buildinginfo1.setVisibility(View.VISIBLE);
                         upfloor.setVisibility(View.VISIBLE);
                         downfloor.setVisibility(View.VISIBLE);
                         savedata.setVisibility(View.VISIBLE);
+                        //将当前经纬度设为大楼经纬度
                         buildinglati=lastlati;
                         buildinglongi=lastlongi;
-//                        Toast.makeText(this, "开启楼层测试", Toast.LENGTH_SHORT).show();
-
+                        //Toast.makeText(this, "开启楼层测试", Toast.LENGTH_SHORT).show();
+                        //进入楼宇信息设置界面
                         Intent it=new Intent(this,buildinginfo.class);
                         startActivityForResult(it,100);
-                    } else {
+                    } else {//再次点击楼层测试，关闭楼层测试功能
                         isBuildingtest = false;
                         item.setChecked(false);
                         buildinginfo1.setVisibility(View.GONE);
@@ -638,20 +570,18 @@ public class MainActivity extends AppCompatActivity
                     makeText(this, "请先启动测试模式", Toast.LENGTH_SHORT).show();
                 }
                 break;
-            case R.id.testend:
+            case R.id.testend://结束测试菜单
                 if(isTestMode&&(!isBuildingtest)) {
                     isTestMode = false;
                     makeText(this, "关闭测试模式", Toast.LENGTH_SHORT).show();
                 }
                 break;
-            case R.id.upload:
+            case R.id.upload://数据上传菜单
                 try {
-
-
                     if (!isTestMode) {
+                        //打开上传数据界面
                         Intent intent=new Intent(this,FileShare.class);
                         startActivity(intent);
-
                     } else {
                         makeText(this, "请先结束测试", Toast.LENGTH_SHORT).show();
                     }
@@ -659,11 +589,11 @@ public class MainActivity extends AppCompatActivity
                 }catch (Exception e){
                     Toast.makeText(this,e.toString(),Toast.LENGTH_LONG).show();
                 }
-            case R.id.about:
+            case R.id.about://关于菜单
                 Intent aboutit=new Intent(this,about.class);
                 startActivity(aboutit);
                 break;
-            case R.id.exit:
+            case R.id.exit://退出程序菜单
                 System.exit(0);
                 break;
 
@@ -671,7 +601,8 @@ public class MainActivity extends AppCompatActivity
         }
         return true;
     }
-//获得楼层测试相关建筑物信息
+
+    //获得楼层测试相关建筑物信息
     protected  void onActivityResult(int requestCode,int resultCode,Intent it){
         if(resultCode==RESULT_OK){
             //确认建筑物信息后，初始化楼层测试的相关数据
@@ -681,22 +612,23 @@ public class MainActivity extends AppCompatActivity
             BuildingEle=it.getStringExtra("danyuan");
             BuildingFloor=Integer.parseInt(it.getStringExtra("louceng"));
 
-            displaytestdata();
-
+            displaytestdata();//显示小区和建筑物信息
         }
     }
     //测试上一层楼,最高40层
     public void upfloor(View  v){
             BuildingFloor++;
             if (BuildingFloor > 40) BuildingFloor = 40;
-            displaytestdata();
+            if(BuildingFloor == 0) BuildingFloor = 1;//处理楼层为0的情况
+            displaytestdata();//显示小区和建筑物信息
     }
 
     //测试下一层楼，最低-5层
     public void downfloor(View  v){
         BuildingFloor--;
         if (BuildingFloor<-5) BuildingFloor=-5;
-        displaytestdata();
+        if(BuildingFloor == 0) BuildingFloor = -1;//处理楼层为0的情况
+        displaytestdata();//显示小区和建筑物信息
     }
 
     //保存楼层测试数据
@@ -708,7 +640,7 @@ public class MainActivity extends AppCompatActivity
     }
     //显示楼层测试相关信息
     public void displaytestdata(){
-
+        if(BuildingFloor == 0) BuildingFloor = 1;//处理楼层为0的情况
         buildinginfo1.setText("小区名称:"+TestLocat+"\n"+"楼        号:"+BuildingNum+"\n"+"单        元:"+BuildingEle+"\n"+"楼        层:"+BuildingFloor);
     }
 
@@ -723,6 +655,7 @@ public class MainActivity extends AppCompatActivity
             Date curDate =  new Date(System.currentTimeMillis());
             String   str = formatter.format(curDate);
 
+            //保存LTE数据
             if(netType== TelephonyManager.NETWORK_TYPE_LTE){
                 RRR=RSRP+"";
                 SEB=SINR+"";
@@ -733,6 +666,7 @@ public class MainActivity extends AppCompatActivity
                 LATI=lastlati+"";
                 LONGI=lastlongi+"";
             }
+            //保存数据
             else if(netType== TelephonyManager.NETWORK_TYPE_GPRS||netType== TelephonyManager.NETWORK_TYPE_EDGE
                     ||netType== TelephonyManager.NETWORK_TYPE_GSM) {
                 RRR=RXL+"";
@@ -744,6 +678,7 @@ public class MainActivity extends AppCompatActivity
                 LATI=lastlati+"";
                 LONGI=lastlongi+"";
             }
+            //保存WCDMA数据
             else if (netType == TelephonyManager.NETWORK_TYPE_UMTS || netType == TelephonyManager.NETWORK_TYPE_HSDPA
                     || netType == TelephonyManager.NETWORK_TYPE_HSUPA || netType == TelephonyManager.NETWORK_TYPE_HSPA
                     || netType == TelephonyManager.NETWORK_TYPE_HSPAP) {
@@ -764,6 +699,7 @@ public class MainActivity extends AppCompatActivity
                 LATI=lastlati+"";
                 LONGI=lastlongi+"";
             }
+            //如果是楼层测试，数据保存时增加楼层偏移量
             if(isBuildingtest){
                 double numStep=Double.valueOf(BuildingFloor).floatValue()*0.00002;//每层楼经纬度增加的偏移量
                 LATI=buildinglati+numStep+"";
