@@ -4,6 +4,7 @@ import android.Manifest;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.location.Location;
 import android.location.LocationListener;
@@ -94,8 +95,11 @@ public class MainActivity extends AppCompatActivity
     String operator;//运营商网络
     int netType;//网络类型
     int LTETAC,eNodebid,LTECI,RSRP,SINR;//LTE网络数据
+    int lastSINR;//上一个采集周期的SINR值
     int GSMLAC,GSMCI,RXL,BER;//GSM网络数据
     int WCDMALAC,RNC,WCDMACI,RSCP,ECIO;//WCDMA网络数据
+    Boolean  isGetCellInfo=true;//获取网络信息是否成功
+    Boolean isSINR10X;//采集的SINR是否10倍数值
 
     String NetInfo="",LocaInfo="",signalInfo="";//当前网络信息、当前位置信息、信号信息
 
@@ -153,6 +157,11 @@ public class MainActivity extends AppCompatActivity
             ActivityCompat.requestPermissions(MainActivity.this,permissions,1);
         }
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);//设置屏幕不休眠
+
+        //SINR值是否10倍实际的数值
+        SharedPreferences myPref=getPreferences(MODE_PRIVATE);
+        isSINR10X=myPref.getBoolean("SINR10X",false);
+
     }
 
 /*    //屏蔽返回键
@@ -230,151 +239,216 @@ public class MainActivity extends AppCompatActivity
             operator = tm.getNetworkOperator();//运营商信息
             netType = tm.getNetworkType();//网络类型
 
-            currentnet.append(operator+"  ");
             String testStr;
             if (isTestMode) testStr="    测试模式";
             else   testStr="";
 
             Boolean  getCard1=false;//是否取得第一张卡的网络信息--本程序只获取第一张卡的网络信息
+            isGetCellInfo=true;
+
+            //由于getallcellinfo无法获取ECIO\BER\SINR，先设置一个较大的值，如其他方法有效，再用正确的值取代
+            ECIO = 999;
+            BER = 999;
+            SINR = 999;
+
+            GsmCellLocation gLocation = (GsmCellLocation) tm.getCellLocation();//取得基站小区信息
+            //网络类型常量
+            //GSM-------NETWORK_TYPE_GPRS;NETWORK_TYPE_EDGE;NETWORK_TYPE_GSM
+            //CDMA------NETWORK_TYPE_CDMA;NETWORK_TYPE_1xRTT;NETWORK_TYPE_IDEN;
+            //CDMA2000--NETWORK_TYPE_EVDO_0;NETWORK_TYPE_EVDO_A;NETWORK_TYPE_EVDO_B;NETWORK_TYPE_EHRPD;
+            //WCDMA-----NETWORK_TYPE_UMTS;NETWORK_TYPE_HSDPA;NETWORK_TYPE_HSUPA;NETWORK_TYPE_HSPA;NETWORK_TYPE_HSPAP;
+            //IWLAN-----NETWORK_TYPE_IWLAN
+            //TDSCDMA---NETWORK_TYPE_TD_SCDMA
+            //LTE-------NETWORK_TYPE_LTE
+            if (netType == TelephonyManager.NETWORK_TYPE_LTE) {//LTE计算enodebid和ci
+                try {
+                    LTETAC = gLocation.getLac();
+                    eNodebid = gLocation.getCid() / 256;
+                    LTECI = gLocation.getCid() % 256;
+                    currentnet.append(operator+"  ").append(networktype[netType]);
+                    currentnet.append("  TAC:" + LTETAC).append("  eNodeBID:" + eNodebid).append("  CI:" + LTECI);
+                } catch (Exception e) {
+                    isGetCellInfo=false;
+                    makeText(getApplicationContext(), e.toString(), Toast.LENGTH_LONG).show();
+                }
+                ;
+            } else if (netType == TelephonyManager.NETWORK_TYPE_GPRS || netType == TelephonyManager.NETWORK_TYPE_EDGE
+                    || netType == TelephonyManager.NETWORK_TYPE_GSM) {
+                GSMLAC = gLocation.getLac();
+                GSMCI = gLocation.getCid();
+                currentnet.append(operator+"  ").append(networktype[netType]);
+                currentnet.append("  LAC:" + GSMLAC).append("  CI:" + GSMCI);
+            } else if (netType == TelephonyManager.NETWORK_TYPE_UMTS || netType == TelephonyManager.NETWORK_TYPE_HSDPA
+                    || netType == TelephonyManager.NETWORK_TYPE_HSUPA || netType == TelephonyManager.NETWORK_TYPE_HSPA
+                    || netType == TelephonyManager.NETWORK_TYPE_HSPAP) {
+                try {
+                    WCDMALAC = gLocation.getLac();
+                    RNC = gLocation.getCid() / 65536;
+                    WCDMACI = gLocation.getCid() % 65536;
+                    currentnet.append(operator+"  ").append(networktype[netType]);
+                    currentnet.append("  LAC:" + WCDMALAC).append("  RNC:" + RNC).append("  CI:" + WCDMACI);
+                } catch (Exception e) {
+                    isGetCellInfo=false;
+                    makeText(getApplicationContext(), e.toString(), Toast.LENGTH_LONG).show();
+                }
+
+            }else{
+                currentnet.append("UNKOWN");
+            }
 
             try {
-                //用getAllCellLocation获取基站信息
-                List<CellInfo> mcellInfos = tm.getAllCellInfo();//获取全部小区信息
-                if (mcellInfos.size() != 0) {//如果已取得小区信息
-                    for (CellInfo mci : mcellInfos) {//依次处理小区信息
-                        if (mci instanceof CellInfoWcdma) {//处理WCDMA小区信息
+                if (netType == TelephonyManager.NETWORK_TYPE_LTE) {
+                    int lte_Strength = (Integer) signalStrength.getClass().getMethod("getLteSignalStrength").invoke(signalStrength);
+                    int lte_rsrp = (Integer) signalStrength.getClass().getMethod("getLteRsrp").invoke(signalStrength);
+                    int lte_rsrq = (Integer) signalStrength.getClass().getMethod("getLteRsrq").invoke(signalStrength);
+                    int lte_sinr = (Integer) signalStrength.getClass().getMethod("getLteRssnr").invoke(signalStrength);
+                    int lte_cqi = (Integer) signalStrength.getClass().getMethod("getLteCqi").invoke(signalStrength);
+                    int lte_dbm = (Integer) signalStrength.getClass().getMethod("getLteDbm").invoke(signalStrength);
+                    int lte_asulevel = (Integer) signalStrength.getClass().getMethod("getLteAsuLevel").invoke(signalStrength);
+                    int lte_level = (Integer) signalStrength.getClass().getMethod("getLteLevel").invoke(signalStrength);
 
-                            if (mci.isRegistered()&&(getCard1==false)) {//是否已注册小区,且未取得第一张卡的网络信息：只处理第一张卡的注册小区信息
-                                CellSignalStrengthWcdma cellSignalStrengthWcdma = ((CellInfoWcdma) mci).getCellSignalStrength();
-                                WCDMALAC = ((CellInfoWcdma) mci).getCellIdentity().getLac();
-                                RNC = ((CellInfoWcdma) mci).getCellIdentity().getCid() / 65536;
-                                WCDMACI = ((CellInfoWcdma) mci).getCellIdentity().getCid() % 65536;
-                                RSCP = cellSignalStrengthWcdma.getDbm();
-                                ECIO = 999;
-                                if (netType==TelephonyManager.NETWORK_TYPE_UNKNOWN)  netType = NETWORK_TYPE_UMTS;
-                                currentnet.append(networktype[netType]);
-                                currentnet.append("  LAC:" + WCDMALAC).append("  RNC:" + RNC).append("  CI:" + WCDMACI);
-                                signalInfo = " RSCP:" + RSCP + "        " + testStr;
-                                getCard1=true;//已取得第一张卡的网络信息
-                            }
-                        } else if (mci instanceof CellInfoGsm) {
-                            if  (mci.isRegistered()&&(getCard1==false)) {//是否已注册小区
-                                CellSignalStrengthGsm cellSignalStrengthGsm = ((CellInfoGsm) mci).getCellSignalStrength();
-                                GSMLAC =  ((CellInfoGsm) mci).getCellIdentity().getLac();
-                                GSMCI =  ((CellInfoGsm) mci).getCellIdentity().getCid();
-                                RXL = cellSignalStrengthGsm.getDbm();
-                                BER = 999;
-                                if (netType==TelephonyManager.NETWORK_TYPE_UNKNOWN)  netType = TelephonyManager.NETWORK_TYPE_GSM;
-                                currentnet.append(networktype[netType]);
-                                currentnet.append("  LAC:" + GSMLAC).append("  CI:" + GSMCI);
-                                signalInfo = " RXL:" + RXL + "        " + testStr;
-                                getCard1=true;
-                            }
-                        } else {
-                            if (mci instanceof CellInfoLte) {
-      //                          CellInfoLte cellInfoLte = (CellInfoLte) tm.getAllCellInfo().get(0);//获得第一个小区的信息
-                                if  (mci.isRegistered()&&(getCard1==false)){//是否已注册小区
-                                    CellSignalStrengthLte cellSignalStrengthLte = ((CellInfoLte)mci).getCellSignalStrength();
-                                    LTETAC = ((CellInfoLte)mci).getCellIdentity().getTac();
-                                    eNodebid = ((CellInfoLte)mci).getCellIdentity().getCi() / 256;
-                                    LTECI = ((CellInfoLte)mci).getCellIdentity().getCi() % 256;
-                                    RSRP = cellSignalStrengthLte.getDbm();
-                                    SINR = 999;
-                                    if (netType==TelephonyManager.NETWORK_TYPE_UNKNOWN) netType = TelephonyManager.NETWORK_TYPE_LTE;
-                                    currentnet.append(networktype[netType]);
-                                    currentnet.append("  TAC:" + LTETAC).append("  eNodeBID:" + eNodebid).append("  CI:" + LTECI);
-                                    signalInfo = " RSRP:" + RSRP + "        " + testStr;
-                                    getCard1=true;
-                                }
-
-                            }
-                        }
-                    }
-                }
-
-                //网络类型常量
-                //GSM-------NETWORK_TYPE_GPRS;NETWORK_TYPE_EDGE;NETWORK_TYPE_GSM
-                //CDMA------NETWORK_TYPE_CDMA;NETWORK_TYPE_1xRTT;NETWORK_TYPE_IDEN;
-                //CDMA2000--NETWORK_TYPE_EVDO_0;NETWORK_TYPE_EVDO_A;NETWORK_TYPE_EVDO_B;NETWORK_TYPE_EHRPD;
-                //WCDMA-----NETWORK_TYPE_UMTS;NETWORK_TYPE_HSDPA;NETWORK_TYPE_HSUPA;NETWORK_TYPE_HSPA;NETWORK_TYPE_HSPAP;
-                //IWLAN-----NETWORK_TYPE_IWLAN
-                //TDSCDMA---NETWORK_TYPE_TD_SCDMA
-                //LTE-------NETWORK_TYPE_LTE
-                else {//如果使用getAllCellInfo方法不可行，用下面的程序
-                    GsmCellLocation gLocation = (GsmCellLocation) tm.getCellLocation();//取得基站小区信息
-
-                    if (netType == TelephonyManager.NETWORK_TYPE_LTE) {//LTE计算enodebid和ci
-                        try {
-                            LTETAC = gLocation.getLac();
-                            eNodebid = gLocation.getCid() / 256;
-                            LTECI = gLocation.getCid() % 256;
-                            currentnet.append(networktype[netType]);
-                            currentnet.append("  TAC:" + LTETAC).append("  eNodeBID:" + eNodebid).append("  CI:" + LTECI);
-                        } catch (Exception e) {
-                            makeText(getApplicationContext(), e.toString(), Toast.LENGTH_LONG).show();
-                        }
-                        ;
-                    } else if (netType == TelephonyManager.NETWORK_TYPE_GPRS || netType == TelephonyManager.NETWORK_TYPE_EDGE
-                            || netType == TelephonyManager.NETWORK_TYPE_GSM) {
-                        GSMLAC = gLocation.getLac();
-                        GSMCI = gLocation.getCid();
-                        currentnet.append(networktype[netType]);
-                        currentnet.append("  LAC:" + GSMLAC).append("  CI:" + GSMCI);
-                    } else if (netType == TelephonyManager.NETWORK_TYPE_UMTS || netType == TelephonyManager.NETWORK_TYPE_HSDPA
-                            || netType == TelephonyManager.NETWORK_TYPE_HSUPA || netType == TelephonyManager.NETWORK_TYPE_HSPA
-                            || netType == TelephonyManager.NETWORK_TYPE_HSPAP) {
-                        try {
-                            WCDMALAC = gLocation.getLac();
-                            RNC = gLocation.getCid() / 65536;
-                            WCDMACI = gLocation.getCid() % 65536;
-                            currentnet.append(networktype[netType]);
-                            currentnet.append("  LAC:" + WCDMALAC).append("  RNC:" + RNC).append("  CI:" + WCDMACI);
-                        } catch (Exception e) {
-                            makeText(getApplicationContext(), e.toString(), Toast.LENGTH_LONG).show();
-                        }
-
-                    }else{
-                        currentnet.append("UNKOWN");
-                    }
-
-
-                    if (netType == TelephonyManager.NETWORK_TYPE_LTE) {
-                        int lte_Strength = (Integer) signalStrength.getClass().getMethod("getLteSignalStrength").invoke(signalStrength);
-                        int lte_rsrp = (Integer) signalStrength.getClass().getMethod("getLteRsrp").invoke(signalStrength);
-                        int lte_rsrq = (Integer) signalStrength.getClass().getMethod("getLteRsrq").invoke(signalStrength);
-                        int lte_sinr = (Integer) signalStrength.getClass().getMethod("getLteRssnr").invoke(signalStrength);
-                        int lte_cqi = (Integer) signalStrength.getClass().getMethod("getLteCqi").invoke(signalStrength);
-                        int lte_dbm = (Integer) signalStrength.getClass().getMethod("getLteDbm").invoke(signalStrength);
-                        int lte_asulevel = (Integer) signalStrength.getClass().getMethod("getLteAsuLevel").invoke(signalStrength);
-                        int lte_level = (Integer) signalStrength.getClass().getMethod("getLteLevel").invoke(signalStrength);
-
-                        RSRP = lte_rsrp;
+                    RSRP = lte_rsrp;
+                    if(RSRP!=0){//有些手机偶尔采集不到有效数据，放弃掉无效数据
                         SINR = lte_sinr;
-                        signalInfo = " RSRP:" + RSRP + "  SINR:" + SINR + testStr;
-                    } else if (netType == TelephonyManager.NETWORK_TYPE_GPRS || netType == TelephonyManager.NETWORK_TYPE_EDGE
-                            || netType == TelephonyManager.NETWORK_TYPE_GSM) {
-                        int gsm_dbm = signalStrength.getGsmSignalStrength();
-                        int gsm_ber = signalStrength.getGsmBitErrorRate();
-
-                        RXL = gsm_dbm;
-                        BER = gsm_ber;
-                        signalInfo = " RXL:" + RXL + "  BER:" + BER + testStr;
-                    } else  if (netType == TelephonyManager.NETWORK_TYPE_UMTS || netType == TelephonyManager.NETWORK_TYPE_HSDPA
-                            || netType == TelephonyManager.NETWORK_TYPE_HSUPA || netType == TelephonyManager.NETWORK_TYPE_HSPA
-                            || netType == TelephonyManager.NETWORK_TYPE_HSPAP) {
-                        int wcdma_rscp = (Integer) signalStrength.getClass().getMethod("getWcdmaRscp").invoke(signalStrength);
-                        int wcdma_ecio = (Integer) signalStrength.getClass().getMethod("getWcdmaEcio").invoke(signalStrength);
-                        RSCP = wcdma_rscp;
-                        ECIO = wcdma_ecio;
-                        signalInfo = " RSCP:" + RSCP + "  ECIO:" + ECIO + testStr;
-                    }else{
-                        signalInfo="";
+                        lastSINR=SINR;
                     }
-                }
+                    else{
+                        SINR=lastSINR;
+                    }
+                    //如果SINR大于100，而且isSINR为false，将首选项SINR10X设为true
+                    if(SINR>100 && isSINR10X==false){
+                        isSINR10X=true;
+                        SharedPreferences.Editor editor=getPreferences(MODE_PRIVATE).edit();
+                        editor.putBoolean("SINR10X" ,true);
+                        editor.commit();
+                    }
 
-            } catch (Exception e) {
-                makeText(getApplicationContext(),e.toString(),Toast.LENGTH_LONG).show();
+                    if(isSINR10X){
+                        SINR=SINR/10;
+                    }
+                    signalInfo = " RSRP:" + RSRP + "  SINR:" + SINR + testStr;
+                } else if (netType == TelephonyManager.NETWORK_TYPE_GPRS || netType == TelephonyManager.NETWORK_TYPE_EDGE
+                        || netType == TelephonyManager.NETWORK_TYPE_GSM) {
+                    int gsm_dbm = signalStrength.getGsmSignalStrength();
+                    int gsm_ber = signalStrength.getGsmBitErrorRate();
+
+                    RXL = gsm_dbm;
+                    BER = gsm_ber;
+                    if(BER<0 ||BER >7){
+                        BER=999;
+                        signalInfo = " RXL:" + RXL + "  BER: - "  + testStr;
+                    }
+                    else{
+                        signalInfo = " RXL:" + RXL + "  BER:" + BER + testStr;
+                    }
+                    signalInfo = " RXL:" + RXL + "  BER:" + BER + testStr;
+                } else if (netType == TelephonyManager.NETWORK_TYPE_UMTS || netType == TelephonyManager.NETWORK_TYPE_HSDPA
+                        || netType == TelephonyManager.NETWORK_TYPE_HSUPA || netType == TelephonyManager.NETWORK_TYPE_HSPA
+                        || netType == TelephonyManager.NETWORK_TYPE_HSPAP) {
+                    int wcdma_rscp = (Integer) signalStrength.getClass().getMethod("getWcdmaRscp").invoke(signalStrength);
+                    int wcdma_ecio = (Integer) signalStrength.getClass().getMethod("getWcdmaEcio").invoke(signalStrength);
+                    RSCP = wcdma_rscp;
+                    ECIO = wcdma_ecio;
+                    signalInfo = " RSCP:" + RSCP + "  ECIO:" + ECIO + testStr;
+                } else {
+                    signalInfo = "";
+                }
+            }catch(Exception  e){
+                isGetCellInfo=false;
+                makeText(getApplicationContext(), e.toString(), Toast.LENGTH_LONG).show();
             }
+//            if(isGetCellInfo==false) {
+                try {
+                    //用getAllCellLocation获取基站信息
+                    List<CellInfo> mcellInfos = tm.getAllCellInfo();//获取全部小区信息
+                    if (mcellInfos.size() != 0) {//如果已取得小区信息
+                        for (CellInfo mci : mcellInfos) {//依次处理小区信息
+                            if (mci instanceof CellInfoWcdma) {//处理WCDMA小区信息
+
+                                if (mci.isRegistered() && (getCard1 == false)) {//是否已注册小区,且未取得第一张卡的网络信息：只处理第一张卡的注册小区信息
+                                    CellSignalStrengthWcdma cellSignalStrengthWcdma = ((CellInfoWcdma) mci).getCellSignalStrength();
+                                    WCDMALAC = ((CellInfoWcdma) mci).getCellIdentity().getLac();
+                                    RNC = ((CellInfoWcdma) mci).getCellIdentity().getCid() / 65536;
+                                    WCDMACI = ((CellInfoWcdma) mci).getCellIdentity().getCid() % 65536;
+                                    int t_dbm=cellSignalStrengthWcdma.getDbm();
+                                    if (t_dbm<0) {
+                                        RSCP = t_dbm;
+                                    }
+//                                    ECIO = 999;
+                                    if (netType == TelephonyManager.NETWORK_TYPE_UNKNOWN)
+                                        netType = NETWORK_TYPE_UMTS;
+                                    if(currentnet==null) {//如果前面的步骤未得到网络信息，添加相关信息
+                                        currentnet.append(operator + "  ").append(networktype[netType]);
+                                        currentnet.append("  LAC:" + WCDMALAC).append("  RNC:" + RNC).append("  CI:" + WCDMACI);
+                                    }
+                                    if (ECIO==999){
+                                        signalInfo = " RSCP:" + RSCP + "  ECIO: - "   + testStr;
+                                    }
+                                    else {
+                                        signalInfo = " RSCP:" + RSCP + "  ECIO:" + ECIO + testStr;
+                                    }
+                                    getCard1 = true;//已取得第一张卡的网络信息
+                                }
+                            } else if (mci instanceof CellInfoGsm) {
+                                if (mci.isRegistered() && (getCard1 == false)) {//是否已注册小区
+                                    CellSignalStrengthGsm cellSignalStrengthGsm = ((CellInfoGsm) mci).getCellSignalStrength();
+                                    GSMLAC = ((CellInfoGsm) mci).getCellIdentity().getLac();
+                                    GSMCI = ((CellInfoGsm) mci).getCellIdentity().getCid();
+                                    int t_dbm=cellSignalStrengthGsm.getDbm();
+                                    if (t_dbm<0) {
+                                        RXL = t_dbm;
+                                    }
+//                                    BER = 999;
+                                    if (netType == TelephonyManager.NETWORK_TYPE_UNKNOWN)
+                                        netType = TelephonyManager.NETWORK_TYPE_GSM;
+                                    if(currentnet==null) {
+                                        currentnet.append(operator + "  ").append(networktype[netType]);
+                                        currentnet.append("  LAC:" + GSMLAC).append("  CI:" + GSMCI);
+                                    }
+                                    if(BER==999) {
+                                        signalInfo = " RXL:" + RXL + "  BER: - "  + testStr;
+                                    }
+                                    else {
+                                        signalInfo = " RXL:" + RXL + "  BER:" + BER + testStr;
+                                    }
+                                    getCard1 = true;
+                                }
+                            } else {
+                                if (mci instanceof CellInfoLte) {
+                                    //                          CellInfoLte cellInfoLte = (CellInfoLte) tm.getAllCellInfo().get(0);//获得第一个小区的信息
+                                    if (mci.isRegistered() && (getCard1 == false)) {//是否已注册小区
+                                        CellSignalStrengthLte cellSignalStrengthLte = ((CellInfoLte) mci).getCellSignalStrength();
+                                        LTETAC = ((CellInfoLte) mci).getCellIdentity().getTac();
+                                        eNodebid = ((CellInfoLte) mci).getCellIdentity().getCi() / 256;
+                                        LTECI = ((CellInfoLte) mci).getCellIdentity().getCi() % 256;
+                                        int t_dbm= cellSignalStrengthLte.getDbm();
+                                        if (t_dbm<0) {
+                                            RSRP = t_dbm;
+                                        }
+//                                        SINR = 999;
+                                        if (netType == TelephonyManager.NETWORK_TYPE_UNKNOWN)
+                                            netType = TelephonyManager.NETWORK_TYPE_LTE;
+                                        if(currentnet==null) {
+                                            currentnet.append(operator + "  ").append(networktype[netType]);
+                                            currentnet.append("  TAC:" + LTETAC).append("  eNodeBID:" + eNodebid).append("  CI:" + LTECI);
+                                        }
+                                        if(SINR==999) {
+                                            signalInfo = " RSRP:" + RSRP + "  SINR: - "  + testStr;
+                                        }
+                                        else{
+                                            signalInfo = " RSRP:" + RSRP + "  SINR:" + SINR + testStr;
+                                        }
+                                        getCard1 = true;
+                                    }
+
+                                }
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    makeText(getApplicationContext(), e.toString(), Toast.LENGTH_LONG).show();
+                }
+ //           }//endif
             NetInfo=currentnet.toString();
             positionText.setText(LocaInfo+"\n"+NetInfo);
             currentsignal.setText(signalInfo);

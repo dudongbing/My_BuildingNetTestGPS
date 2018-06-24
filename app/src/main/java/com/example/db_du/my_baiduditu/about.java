@@ -15,7 +15,7 @@ public class about extends AppCompatActivity {
         setContentView(com.example.db_du.my_baiduditu.R.layout.activity_about);
 
         TextView txv=(TextView)findViewById(com.example.db_du.my_baiduditu.R.id.textView5);
-        txv.setText("深度覆盖测试  v1.0\n\n居民小区基站深度覆盖测试工具\n\nQQ交流群：\n\n796247093");
+        txv.setText("深度覆盖测试  v1.1\n\n居民小区基站深度覆盖测试工具\n\nQQ交流群：\n\n796247093");
 
     }
 
